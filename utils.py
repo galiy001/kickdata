@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-API_KEY = st.secrets("api_key")
+API_KEY = st.secrets["api_key"]
 
 # Static League ID list of the top ten leagues extracted from API documents.
 LEAGUE_IDS = {
