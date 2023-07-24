@@ -344,33 +344,3 @@ def get_team_stats(club_name, club_country, season, league_name):
             "Lineups": lineup_info,
         }
     }
-
-
-def get_league_performance(league_name, season):
-    league_id = LEAGUE_IDS.get(league_name)
-    if not league_id:
-        return f"Invalid league name: {league_name}. Please choose from: {', '.join(LEAGUE_IDS.keys())}"
-
-    url = "https://api-football-v1.p.rapidapi.com/v3/teams"
-    headers = {
-        "X-RapidAPI-Key": API_KEY,
-        "X-RapidAPI-Host": "api-football-v1.p.rapidapi.com"
-    }
-    querystring = {"league": str(league_id), "season": season}
-    response = requests.get(url, headers=headers, params=querystring)
-    response_data = response.json()
-    if response_data.get('response'):
-        team_stats = []
-        for team in response_data['response']:
-            team_id = team['team']['id']
-            team_name = team['team']['name']
-            team_country = team['team']['country']
-            team_stat = get_team_stats(team_name, team_country, season, league_name)
-            if isinstance(team_stat, dict):
-                team_stat['team_id'] = team_id
-                team_stat['team_name'] = team_name
-                team_stats.append(team_stat)
-
-        return team_stats
-    else:
-        return f"No teams found for {league_name} in the {season} season."

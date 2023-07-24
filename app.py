@@ -12,8 +12,7 @@ from PIL import Image, ImageOps
 from io import BytesIO
 from geopy.geocoders import Nominatim
 from streamlit_folium import folium_static
-from utils import get_player_stats, get_players_from_api, get_club_id, LEAGUE_IDS, get_club_logo, \
-    get_club_stats_from_api, get_team_stats
+from utils import get_player_stats, get_players_from_api, get_club_id, LEAGUE_IDS, get_club_logo, get_team_stats
 
 
 # Radar chart function -- this will allow us to visually compare players to one another. Notice that each
@@ -380,7 +379,6 @@ elif option == "Radar Chart":
                     # Render the radar chart using the st.pyplot method and passing in 'fig' -- the chart we created.
                     st.pyplot(fig)
 
-# Else if the option is player search, divert to this logic.
 elif option == "Player Search":
 
     st.sidebar.divider()
@@ -407,7 +405,9 @@ elif option == "Player Search":
     # Once the user clicks 'Search!' begin to execute this logic.
     if st.sidebar.button('Search!'):
         if player_name and season and league:
-            player_stats = get_player_stats(player_name, season, league)
+
+            with st.spinner('Fetching player stats...'):
+                player_stats = get_player_stats(player_name, season, league)
 
             # Check if player_stats is a dictionary and contains the key "Player"
             if isinstance(player_stats, dict) and "Player" in player_stats:
@@ -424,11 +424,11 @@ elif option == "Player Search":
                 # Now, create a list of values for the player.
                 player_values = [player_stats_dict.get(label, 0) for label in all_labels]
 
-                # Check if player's stats have same length, fill with zero if not
+                # Check if player's stats have same length, fill with zero if not.
                 while len(player_values) < len(all_labels):
                     player_values.append(0)
 
-                # This way the best way to handle displaying the player's photo, name, and club.
+                # This was the best way to handle displaying the player's photo, name, and club.
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     st.image(add_border(player_photo, border=10), width=100)
@@ -443,20 +443,23 @@ elif option == "Player Search":
 
                 # Display player's stats in a table using Pandas Dataframe.
                 st.markdown('### Player Statistics')
-                stats_df = pd.DataFrame(data={'Statistic': all_labels, 'Value': player_values})
-                stats_df.index = np.arange(1, len(stats_df) + 1)
-                st.table(stats_df)
+
+                with st.spinner('Generating player statistics table...'):
+                    stats_df = pd.DataFrame(data={'Statistic': all_labels, 'Value': player_values})
+                    stats_df.index = np.arange(1, len(stats_df) + 1)
+                    st.table(stats_df)
 
                 # Visualize player's stats using a bar chart if the checkbox is checked!
                 if show_chart:  # Check the value of the checkbox here
                     st.markdown('### Player Statistics Chart')
-                    stats_df = stats_df.set_index('Statistic')
-                    st.bar_chart(stats_df)
+
+                    with st.spinner('Generating player statistics chart...'):
+                        stats_df = stats_df.set_index('Statistic')
+                        st.bar_chart(stats_df)
             else:
                 # Error handling with st.error.
                 st.error("Player not found or invalid data. Please check the name and try again.")
 
-# If the user chooses 'Player Map', divert to this logic.
 elif option == "Player Map":
 
     st.sidebar.divider()
@@ -482,9 +485,13 @@ elif option == "Player Map":
 
     if st.sidebar.button('Map!'):
         if club_name and club_country and season and league:
+
             club_id = get_club_id(club_name, club_country)
+
             if club_id is not None:
-                players = get_players_from_api(club_id, season, LEAGUE_IDS[league])
+
+                with st.spinner('Fetching players...'):
+                    players = get_players_from_api(club_id, season, LEAGUE_IDS[league])
 
                 geolocator = Nominatim(user_agent="myGeocoder")
                 m = folium.Map(location=[52.5200, 13.4050], zoom_start=3)
@@ -495,7 +502,6 @@ elif option == "Player Map":
                     location = geolocator.geocode(player_data['nationality'])
                     if location is not None:
                         # 'Jitter' the latitude/longitude so each player isn't on top of each other.
-                        # Check the functions before the Streamlit app to see details on this function!
                         jittered_lat, jittered_lon = add_jitter(location.latitude, location.longitude)
                         # User folium's 'Marker' function to add the player's name and location to the map!
                         folium.Marker(
@@ -512,16 +518,19 @@ elif option == "Player Map":
                     st.image(club_logo, width=80)
 
                 # Display the folium map with player locations and names.
-                folium_static(m)
+                with st.spinner('Rendering map...'):
+                    folium_static(m)
 
                 # Render the roster table below the map.
                 st.header(f"{club_name}'s {int(season)} - {int(season) + int(1)} Roster")
-                players_data = [
-                    {'Player Name': player['player']['name'], 'Nationality': player['player']['nationality']} for
-                    player in players]
-                players_df = pd.DataFrame(players_data)
-                players_df.index = np.arange(1, len(players_df) + 1)
-                st.table(players_df)
+
+                with st.spinner('Generating player roster...'):
+                    players_data = [
+                        {'Player Name': player['player']['name'], 'Nationality': player['player']['nationality']} for
+                        player in players]
+                    players_df = pd.DataFrame(players_data)
+                    players_df.index = np.arange(1, len(players_df) + 1)
+                    st.table(players_df)
             else:
                 # Error handling if we can't find the club within a country.
                 st.error("No club found with this name and country.")
@@ -538,7 +547,7 @@ elif option == "Team Statistics":
         'This feature will grab the statistics for a particular team and give the user an option on what they want to see -- '
         'using the "Season at a Glance" option, they can view a condensed version of stats, an overview of a team\'s season. '
         'Selecting "An In-Depth Look" provides tabular data in addition to visualized data using various charts to illustrate'
-        'a team\'s performance during that season.' , icon="ℹ️")
+        'a team\'s performance during that season.', icon="ℹ️")
 
     # Using league_options from above -- I wanted to have a blank space as the first entry.
     league_options = [''] + list(LEAGUE_IDS.keys())
@@ -601,11 +610,12 @@ elif option == "Team Statistics":
                         'Total Times Failed to Score': team_stats["Stats"]['Total Times Failed to Score'],
                     }
 
-                    simplified_stats_df = pd.DataFrame(
-                        data={'Statistic': list(simplified_stats.keys()), 'Value': list(simplified_stats.values())})
-                    simplified_stats_df.index = np.arange(1, len(simplified_stats_df) + 1)
-                    st.markdown(f"### {int(season)} - {int(season) + int(1)} Season Stats")
-                    st.table(simplified_stats_df)
+                    with st.spinner("Generating stat table..."):
+                        simplified_stats_df = pd.DataFrame(
+                            data={'Statistic': list(simplified_stats.keys()), 'Value': list(simplified_stats.values())})
+                        simplified_stats_df.index = np.arange(1, len(simplified_stats_df) + 1)
+                        st.markdown(f"### {int(season)} - {int(season) + int(1)} Season Stats")
+                        st.table(simplified_stats_df)
 
                     # Display win data within a heatmap using seaborn. Generate to small size so we don't overwhelm user!
                     win_data = {
@@ -617,87 +627,88 @@ elif option == "Team Statistics":
                                    stats_dict['Total Losses']]
                     }
 
-                    # Game Results Breakdown
-                    df = pd.DataFrame(win_data, index=["Home", "Away", "Total"])
+                    with st.spinner("Generating charts..."):
+                        # A heatmap of games won/lost/drawn.
+                        df = pd.DataFrame(win_data, index=["Home", "Away", "Total"])
 
-                    fig, ax = plt.subplots(figsize=(10, 5))
-                    sns.heatmap(df, annot=True, fmt='d', cmap='YlGnBu', ax=ax, cbar_kws={'label': 'Number of Games'})
-                    ax.set_title('Game Results Breakdown')
-                    ax.set_xlabel('Result Type')
-                    ax.set_ylabel('Location')
-                    heatmap_fig = fig
+                        fig, ax = plt.subplots(figsize=(10, 5))
+                        sns.heatmap(df, annot=True, fmt='d', cmap='YlGnBu', ax=ax, cbar_kws={'label': 'Number of Games'})
+                        ax.set_title('Game Results Breakdown')
+                        ax.set_xlabel('Result Type')
+                        ax.set_ylabel('Location')
+                        heatmap_fig = fig
 
-                    # Formations used + percentage of time used!
-                    formation_names = team_stats["Stats"]["Lineups"].keys()
-                    formation_counts = team_stats["Stats"]["Lineups"].values()
-                    formations = list(formation_names)
-                    counts = list(formation_counts)
-                    colors = cm.rainbow(np.linspace(0, 1, len(formations)))
-                    explode = [0.1 if count == max(counts) else 0 for count in
-                               counts]
+                        # Formations used + percentage of time used!
+                        formation_names = team_stats["Stats"]["Lineups"].keys()
+                        formation_counts = team_stats["Stats"]["Lineups"].values()
+                        formations = list(formation_names)
+                        counts = list(formation_counts)
+                        colors = cm.rainbow(np.linspace(0, 1, len(formations)))
+                        explode = [0.1 if count == max(counts) else 0 for count in
+                                   counts]
 
-                    fig, ax = plt.subplots(figsize=(5, 5))
-                    ax.pie(counts, labels=formations, autopct='%1.1f%%', colors=colors, explode=explode)
-                    ax.set_title('Formations Used')
-                    ax.legend(formations, title="Formations", loc="upper right", bbox_to_anchor=(1, 0, 0.5, 1))
-                    formations_pie_chart_fig = fig
+                        fig, ax = plt.subplots(figsize=(5, 5))
+                        ax.pie(counts, labels=formations, autopct='%1.1f%%', colors=colors, explode=explode)
+                        ax.set_title('Formations Used')
+                        ax.legend(formations, title="Formations", loc="upper right", bbox_to_anchor=(1, 0, 0.5, 1))
+                        formations_pie_chart_fig = fig
 
-                    # Longest Streaks
-                    streak_types = ["Win", "Draw", "Lose"]
-                    streak_lengths = [team_stats["Stats"]["Longest " + t + " Streak"] for t in streak_types]
+                        # A bar chart for longest streaks.
+                        streak_types = ["Win", "Draw", "Lose"]
+                        streak_lengths = [team_stats["Stats"]["Longest " + t + " Streak"] for t in streak_types]
 
-                    fig, ax = plt.subplots(figsize=(10, 5))
-                    bars = ax.barh(streak_types, streak_lengths, color=['green', 'blue', 'red'])
+                        fig, ax = plt.subplots(figsize=(10, 5))
+                        bars = ax.barh(streak_types, streak_lengths, color=['green', 'blue', 'red'])
 
-                    for bar in bars:
-                        width = bar.get_width()
-                        ax.text(width, bar.get_y() + bar.get_height() / 2, f' {width}', ha='left', va='center',
-                                color='black')
+                        for bar in bars:
+                            width = bar.get_width()
+                            ax.text(width, bar.get_y() + bar.get_height() / 2, f' {width}', ha='left', va='center',
+                                    color='black')
 
-                    ax.set_xlabel('Streak Length')
-                    ax.set_ylabel('Streak Type')
-                    ax.set_title('Longest Streaks')
-                    streak_bar_chart_fig = fig
+                        ax.set_xlabel('Streak Length')
+                        ax.set_ylabel('Streak Type')
+                        ax.set_title('Longest Streaks')
+                        streak_bar_chart_fig = fig
 
-                    season_form = team_stats["Stats"]["Club Form"]
+                        season_form = team_stats["Stats"]["Club Form"]
 
-                    # Mapping each result to its corresponding points.
-                    points_mapping = {'W': 3, 'D': 1, 'L': 0}
-                    points = [points_mapping[game_result] for game_result in season_form]
+                        # Mapping each result to its corresponding points.
+                        points_mapping = {'W': 3, 'D': 1, 'L': 0}
+                        points = [points_mapping[game_result] for game_result in season_form]
 
-                    # Creating a running total of points.
-                    cumulative_points = [sum(points[:i + 1]) for i in range(len(points))]
+                        # Creating a running total of points.
+                        cumulative_points = [sum(points[:i + 1]) for i in range(len(points))]
 
-                    # Points Accumulated
-                    fig, ax = plt.subplots(figsize=(10, 5))
-                    ax.plot(cumulative_points, marker='o', color='black')
+                        # A line chart for points accumulated over the course of a season.
+                        fig, ax = plt.subplots(figsize=(10, 5))
+                        ax.plot(cumulative_points, marker='o', color='black')
 
-                    # Add a red dot for the maximum point accumulation
-                    max_points = max(cumulative_points)
-                    max_points_index = cumulative_points.index(max_points)
-                    ax.plot(max_points_index, max_points, marker='o', color='red')
+                        # Add a red dot for the maximum point accumulation for user visibility.
+                        max_points = max(cumulative_points)
+                        max_points_index = cumulative_points.index(max_points)
+                        ax.plot(max_points_index, max_points, marker='o', color='red')
 
-                    # Add a text label for the maximum point accumulation
-                    ax.text(max_points_index, max_points, f'  Max ({max_points})', ha='left', va='bottom', color='red')
+                        # Add a text label for the maximum point accumulation at the end of the season.
+                        ax.text(max_points_index, max_points, f'  Max ({max_points})', ha='left', va='bottom', color='red')
 
-                    ax.set_title(f'{team_name}\'s Season Points Accumulation')
-                    ax.set_xlabel('Matchday')
-                    ax.set_ylabel('Cumulative Points')
-                    ax.grid(True)
+                        ax.set_title(f'{team_name}\'s Season Points Accumulation')
+                        ax.set_xlabel('Matchday')
+                        ax.set_ylabel('Cumulative Points')
+                        ax.grid(True)
 
-                    # Shading
-                    start_shade = None
-                    for i, game_result in enumerate(season_form):
-                        if game_result in {'D', 'L'} and start_shade is None:
-                            start_shade = i
-                        elif game_result == 'W' and start_shade is not None:
-                            ax.fill_between([start_shade - 1, i - 1], 0, max(cumulative_points), color='red', alpha=0.1)
-                            start_shade = None
-                    if start_shade is not None:
-                        ax.fill_between([start_shade - 1, len(season_form)], 0, max(cumulative_points), color='red',
-                                        alpha=0.1)
+                        # Shading for the line chart so we can see where teams had poor results.
+                        start_shade = None
+                        for i, game_result in enumerate(season_form):
+                            if game_result in {'D', 'L'} and start_shade is None:
+                                start_shade = i
+                            elif game_result == 'W' and start_shade is not None:
+                                ax.fill_between([start_shade - 1, i - 1], 0, max(cumulative_points), color='red', alpha=0.1)
+                                start_shade = None
+                        if start_shade is not None:
+                            ax.fill_between([start_shade - 1, len(season_form)], 0, max(cumulative_points), color='red',
+                                            alpha=0.1)
 
-                    points_accumulated_fig = fig
+                        points_accumulated_fig = fig
 
                     st.markdown("### Data Visualization")
                     st.write("You can find visualized data in this section. In order to expand the charts, hover over "
@@ -728,100 +739,104 @@ elif option == "Team Statistics":
 
                 elif chart_option == 'Season at a Glance':
 
-                    # Display the team's logo and name
-                    st.image(team_logo)
+                    with st.spinner('Loading team data...'):
+                        st.image(team_logo)
 
-                    performance = calculate_performance(stats_dict, season)
+                        performance = calculate_performance(stats_dict, season)
 
-                    # Color based on performance
-                    if performance <= 1:
-                        color = "red"  # Bad
+                        # Color the number based on performance.
+                        if performance <= 1:
+                            color = "red"
 
-                    elif 1 < performance <= 2.5:
-                         color = "yellow"  # Average
+                        elif 1 < performance <= 2.5:
+                            color = "yellow"
 
-                    else:
-                        color = "green"  # Great
+                        else:
+                            color = "green"
 
-                    st.markdown(f"### {team_name}'s {int(season)} - {int(season) + int(1)} Overall Season Performance:")
-                    st.markdown(f"<h3 style='text-align: start; color: {color};'>{performance:.2f}</h3>",
-                                unsafe_allow_html=True)
+                        st.markdown(f"### {team_name}'s {int(season)} - {int(season) + int(1)} Overall Season Performance:")
+                        st.markdown(f"<h3 style='text-align: start; color: {color};'>{performance:.2f}</h3>",
+                                    unsafe_allow_html=True)
 
-                    st.markdown(
-                        f"Team performance is calculated based on total wins, total losses, and total goals scored. The higher the value, the better the team performance. "
-                        f"These values typically lie between **0** and **3.5.** ")
+                        st.markdown(
+                            f"Team performance is calculated based on total wins, total losses, and total goals scored. The higher the value, the better the team performance. "
+                            f"These values typically lie between **0** and **3.5.** ")
 
-                    # Display the other statistics in tiles
-                    simplified_tile_stats = {
-                        'Total Games': team_stats["Stats"]['Total Games'],
-                        'Total Wins': team_stats["Stats"]['Total Wins'],
-                        'Total Draws': team_stats["Stats"]['Total Draws'],
-                        'Total Losses': team_stats["Stats"]['Total Losses'],
-                        'Total Goals Scored': team_stats["Stats"]['Total Goals Scored'],
-                        'Total Goals Conceded': team_stats["Stats"]['Total Goals Conceded'],
-                        'Longest Win Streak': team_stats["Stats"]['Longest Win Streak'],
-                        'Longest Draw Streak': team_stats["Stats"]['Longest Draw Streak'],
-                        'Longest Lose Streak': team_stats["Stats"]['Longest Lose Streak'],
-                        'Biggest Win': max(
-                            [team_stats["Stats"]['Biggest Home Win'], team_stats["Stats"]['Biggest Away Win']]),
-                        'Biggest Loss': max(
-                            [team_stats["Stats"]['Biggest Home Loss'], team_stats["Stats"]['Biggest Away Loss']]),
-                        'Total Clean Sheets': team_stats["Stats"]['Total Clean Sheets'],
-                        'Total Times Failed to Score': team_stats["Stats"]['Total Times Failed to Score'],
-                    }
+                        # Read in the other stats and use them to create a dynamic summary.
+                        # Initially, these were supposed to be tiles (hence "tile_stats"), but Streamlit
+                        # was very difficult when attempting this so I settled for a season summary.
+                        simplified_tile_stats = {
+                            'Total Games': team_stats["Stats"]['Total Games'],
+                            'Total Wins': team_stats["Stats"]['Total Wins'],
+                            'Total Draws': team_stats["Stats"]['Total Draws'],
+                            'Total Losses': team_stats["Stats"]['Total Losses'],
+                            'Total Goals Scored': team_stats["Stats"]['Total Goals Scored'],
+                            'Total Goals Conceded': team_stats["Stats"]['Total Goals Conceded'],
+                            'Longest Win Streak': team_stats["Stats"]['Longest Win Streak'],
+                            'Longest Draw Streak': team_stats["Stats"]['Longest Draw Streak'],
+                            'Longest Lose Streak': team_stats["Stats"]['Longest Lose Streak'],
+                            'Biggest Win': max(
+                                [team_stats["Stats"]['Biggest Home Win'], team_stats["Stats"]['Biggest Away Win']]),
+                            'Biggest Loss': max(
+                                [team_stats["Stats"]['Biggest Home Loss'], team_stats["Stats"]['Biggest Away Loss']]),
+                            'Total Clean Sheets': team_stats["Stats"]['Total Clean Sheets'],
+                            'Total Times Failed to Score': team_stats["Stats"]['Total Times Failed to Score'],
+                        }
 
-                    # Extract stats from the dictionary
-                    total_games = simplified_tile_stats['Total Games']
-                    total_wins = simplified_tile_stats['Total Wins']
-                    total_draws = simplified_tile_stats['Total Draws']
-                    total_losses = simplified_tile_stats['Total Losses']
-                    total_goals_scored = simplified_tile_stats['Total Goals Scored']
-                    total_goals_conceded = simplified_tile_stats['Total Goals Conceded']
-                    biggest_win = simplified_tile_stats['Biggest Win']
-                    biggest_loss = simplified_tile_stats['Biggest Loss']
-                    total_clean_sheets = simplified_tile_stats['Total Clean Sheets']
-                    total_times_failed_to_score = simplified_tile_stats['Total Times Failed to Score']
+                        # Extract the stats from the dictionary.
+                        total_games = simplified_tile_stats['Total Games']
+                        total_wins = simplified_tile_stats['Total Wins']
+                        total_draws = simplified_tile_stats['Total Draws']
+                        total_losses = simplified_tile_stats['Total Losses']
+                        total_goals_scored = simplified_tile_stats['Total Goals Scored']
+                        total_goals_conceded = simplified_tile_stats['Total Goals Conceded']
+                        biggest_win = simplified_tile_stats['Biggest Win']
+                        biggest_loss = simplified_tile_stats['Biggest Loss']
+                        total_clean_sheets = simplified_tile_stats['Total Clean Sheets']
+                        total_times_failed_to_score = simplified_tile_stats['Total Times Failed to Score']
 
-                    # Calculate statistics
-                    win_rate = total_wins / total_games * 100
-                    loss_rate = total_losses / total_games * 100
-                    clean_sheet_rate = total_clean_sheets / total_games * 100
-                    goal_difference = total_goals_scored - total_goals_conceded
+                        # Calculate various statistic variables for the summary.
+                        win_rate = total_wins / total_games * 100
+                        loss_rate = total_losses / total_games * 100
+                        clean_sheet_rate = total_clean_sheets / total_games * 100
+                        goal_difference = total_goals_scored - total_goals_conceded
 
-                    # Start of the summary
-                    summary = f"During the {int(season)} - {int(season) + int(1)} season, {team_name} played a total of {total_games} games."
+                    # Begin the dynamic summary.
+                    with st.spinner('Creating summary...'):
+                        summary = f"During the {int(season)} - {int(season) + int(1)} season, {team_name} played a total of {total_games} games."
 
-                    if win_rate >= 65:
-                        summary += f" They had an incredible season, with a strong performance score of {performance:.2f} and winning at least two-thirds of their games, a total of {total_wins} victories and a win percentage of {win_rate:.2f}%."
-                    elif win_rate >= 51:
-                        summary += f" They had a decent season, with a performance score of {performance:.2f} and victories in just over half of their games with a total of {total_wins} victories and a win percentage of {win_rate:.2f}%."
-                    elif win_rate <= 33:
-                        summary += f" Unfortunately, they struggled throughout the season, with a poor performance score of {performance:.2f} winning just {total_wins} games out of {total_games} played with a loss percentage of {loss_rate:.2f}%."
-                    else:
-                        summary += f" They had a fairly balanced season -- {total_wins} wins from their {total_games} games with {win_rate:.2f}% of games won and {loss_rate:.2f}% of games lost, leaving them with a performance score of {performance:.2f}."
+                        if win_rate >= 65:
+                            summary += f" They had an incredible season, with a strong performance score of {performance:.2f} and winning at least two-thirds of their games, a total of {total_wins} victories and a win percentage of {win_rate:.2f}%."
+                        elif win_rate >= 51:
+                            summary += f" They had a decent season, with a performance score of {performance:.2f} and victories in just over half of their games with a total of {total_wins} victories and a win percentage of {win_rate:.2f}%."
+                        elif win_rate <= 33:
+                            summary += f" Unfortunately, they struggled throughout the season, with a poor performance score of {performance:.2f} winning just {total_wins} games out of {total_games} played with a loss percentage of {loss_rate:.2f}%."
+                        else:
+                            summary += f" They had a fairly balanced season -- {total_wins} wins from their {total_games} games with {win_rate:.2f}% of games won and {loss_rate:.2f}% of games lost, leaving them with a performance score of {performance:.2f}."
 
-                    if goal_difference > 0:
-                        summary += f" With {total_goals_scored} goals scored and {total_goals_conceded} goals conceded, they had a positive goal difference of {goal_difference}."
-                    else:
-                        summary += f" With {total_goals_scored} goals scored and {total_goals_conceded} goals conceded, they had a negative goal difference of {goal_difference}."
+                        if goal_difference > 0:
+                            summary += f" With {total_goals_scored} goals scored and {total_goals_conceded} goals conceded, they had a positive goal difference of {goal_difference}."
+                        else:
+                            summary += f" With {total_goals_scored} goals scored and {total_goals_conceded} goals conceded, they had a negative goal difference of {goal_difference}."
 
-                    if total_clean_sheets > total_games / 3:
-                        summary += f" They had quite a stalwart defense, leading them to a clean sheet over {clean_sheet_rate:.2f}% of games, with a total of {total_clean_sheets} clean sheets."
-                    else:
-                        summary += f" They could do with a stronger defense -- they only managed a clean sheet in about {clean_sheet_rate:.2f}% of games, with a total of {total_clean_sheets} clean sheets."
+                        if total_clean_sheets > total_games / 3:
+                            summary += f" They had quite a stalwart defense, leading them to a clean sheet over {clean_sheet_rate:.2f}% of games, with a total of {total_clean_sheets} clean sheets."
+                        else:
+                            summary += f" They could do with a stronger defense -- they only managed a clean sheet in about {clean_sheet_rate:.2f}% of games, with a total of {total_clean_sheets} clean sheets."
 
-                    if total_times_failed_to_score < total_games / 2:
-                        summary += f" Their attack was quite potent -- they only failed to score a total of {total_times_failed_to_score} games over {total_games} games played. Dangerous."
-                    else:
-                        summary += f" Their attackers were off the mark this season, as they failed to score {total_times_failed_to_score} times over {total_games} games played. Quite poor."
+                        if total_times_failed_to_score < total_games / 2:
+                            summary += f" Their attack was quite potent -- they only failed to score a total of {total_times_failed_to_score} games over {total_games} games played. Dangerous."
+                        else:
+                            summary += f" Their attackers were off the mark this season, as they failed to score {total_times_failed_to_score} times over {total_games} games played. Quite poor."
 
-                    summary += f" Their biggest win was {biggest_win}, and the biggest loss was {biggest_loss}."
+                        summary += f" Their biggest win was {biggest_win}, and the biggest loss was {biggest_loss}."
 
-                    st.markdown(summary)
+                        st.markdown(summary)
 
-                    st.divider()
+                        st.divider()
 
-                    st.markdown("##### ⬅️ To see detailed statistics and charts, choose 'An In-Depth Look' from the side bar. ")
+                        st.markdown(
+                            "##### ⬅️ To see detailed statistics and charts, choose 'An In-Depth Look' from the side bar. ")
 
                 else:
                     # Error handling with st.error.
