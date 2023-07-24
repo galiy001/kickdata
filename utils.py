@@ -25,6 +25,7 @@ LEAGUE_IDS = {
 }
 
 
+@st.cache_data(ttl=24*60*60)
 def get_player_stats_from_api(player_name, season, league_id):
     url = "https://api-football-v1.p.rapidapi.com/v3/players"
 
@@ -58,6 +59,7 @@ def get_player_stats_from_api(player_name, season, league_id):
     return None
 
 
+@st.cache_data(ttl=24*60*60)
 def get_club_stats_from_api(club_id, season, league_id):
     url = "https://api-football-v1.p.rapidapi.com/v3/teams/statistics"
 
@@ -77,6 +79,7 @@ def get_club_stats_from_api(club_id, season, league_id):
     return None
 
 
+@st.cache_data(ttl=24*60*60)
 def get_players_from_api(club_id, season, league_id, page=1):
     url = "https://api-football-v1.p.rapidapi.com/v3/players"
 
@@ -101,6 +104,7 @@ def get_players_from_api(club_id, season, league_id, page=1):
     return None
 
 
+@st.cache_data(ttl=24*60*60)
 # Retrieve a club's ID based on the club's name and country.
 def get_club_id(club_name, club_country):
     url = "https://api-football-v1.p.rapidapi.com/v3/teams"
@@ -125,6 +129,7 @@ def get_club_id(club_name, club_country):
     return None
 
 
+@st.cache_data(ttl=24*60*60)
 # Just a quick API call to get the club logo using the club_name and club_country.
 def get_club_logo(club_name, club_country):
     url = "https://api-football-v1.p.rapidapi.com/v3/teams"
@@ -145,6 +150,7 @@ def get_club_logo(club_name, club_country):
     return None
 
 
+@st.cache_data(ttl=24*60*60)
 # Probably the most important function in this app, retrieve the player's stats based on the player's
 # full name, the season, and the league which they play in.
 def get_player_stats(player_full_name, season, league_name):
@@ -224,6 +230,7 @@ def get_player_stats(player_full_name, season, league_name):
     }
 
 
+@st.cache_data(ttl=24*60*60)
 # Similar to the get_player_stats, however this function is to retrieve club stats!
 def get_team_stats(club_name, club_country, season, league_name):
     league_id = LEAGUE_IDS.get(league_name)
