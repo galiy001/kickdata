@@ -450,7 +450,7 @@ elif option == "Player Search":
                     st.table(stats_df)
 
                 # Visualize player's stats using a bar chart if the checkbox is checked!
-                if show_chart:  # Check the value of the checkbox here
+                if show_chart:
                     st.markdown('### Player Statistics Chart')
 
                     with st.spinner('Generating player statistics chart...'):
